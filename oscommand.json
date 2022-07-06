@@ -1,0 +1,32 @@
+[
+  {
+    "title": "fallguys_up",
+    "command": "./fallguys_injector_executor.sh",
+    "args": ["up"]
+  },
+  {
+    "title": "fallguys_down",
+    "command": "./fallguys_injector_executor.sh",
+    "args": ["down"]
+  },
+  {
+    "title": "fallguys_right",
+    "command":"./fallguys_injector_executor.sh",
+    "args": ["right"]
+  },
+  {
+    "title": "fallguys_left",
+    "command": "./fallguys_injector_executor.sh",
+    "args": ["left"]
+  },
+  {
+    "title":"fallguys_jump",
+    "command": "./fallguys_injector_executor.sh",
+    "args": ["jump"]
+  },
+  {
+    "title": "fallguys_dive",
+    "command": "./fallguys_injector_executor.sh",
+    "args": ["dive"]
+  }
+]
