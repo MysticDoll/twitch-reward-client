@@ -15,8 +15,9 @@ impl Command for OSCommand {
     fn exec(&self, _client: &TwitchRewardClient) -> Result<()> {
         let command= self.command.clone();
         let args = self.args.clone();
+        println!("{:?}", &self);
 
-        let _t = tokio::spawn(async move {
+        tokio::spawn(async move {
             if let Err(e) = TokioCommand::new(&command)
                .args(args)
                 .stdin(std::process::Stdio::null())
@@ -30,6 +31,9 @@ impl Command for OSCommand {
                 println!("success excution");
                 Ok(())
             };
+        });
+        tokio::spawn(async {
+            println!("workaround");
         });
 
         Ok(())
