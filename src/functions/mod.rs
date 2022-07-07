@@ -1,3 +1,4 @@
+pub(crate) mod http_request;
 pub(crate) mod oscommand;
 
 use crate::client::TwitchRewardClient;
