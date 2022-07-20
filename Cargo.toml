@@ -1,5 +1,5 @@
 [package]
-name = "twred"
+name = "twitch-reward-client"
 version = "0.1.0"
 authors = ["Mitsuru Takigahira <mysticdoll@mysticdoll.com>"]
 edition = "2018"

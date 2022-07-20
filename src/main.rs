@@ -4,7 +4,6 @@ extern crate env_logger;
 
 mod client;
 mod functions;
-mod irc;
 mod twitch;
 
 use crate::client::TwitchRewardClient;
