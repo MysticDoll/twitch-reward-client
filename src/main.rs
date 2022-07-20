@@ -9,15 +9,49 @@ mod twitch;
 use crate::client::TwitchRewardClient;
 use crate::functions::Command;
 use crate::functions::oscommand::OSCommand;
+use crate::twitch::{get_channel_id, AuthorizationData, AuthorizationRequest};
+use futures_util::{future, pin_mut, StreamExt, SinkExt};
 use std::collections::HashMap;
+use serde_json::Value;
 use url::Url;
 use tokio::runtime::Runtime;
+use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
+
 
 #[tokio::main]
 async fn main() {
     env_logger::init();
-    connect().await;
+
+    let token = std::env::var("TWITCH_ACCESS_TOKEN").unwrap();
+    let channel_id = get_channel_id(&token);
+    let data = AuthorizationData::new(
+        vec![format!("channel-points-channel-v1.{}", channel_id)],
+        &token,
+    );
+    let request = AuthorizationRequest::new("LISTEN", data);
+    let connect_url = Url::parse("wss://pubsub-edge.twitch.tv:443/v1/").unwrap();
+    let (ws_stream, _) = connect_async(connect_url).await.unwrap();
+    let (mut write, mut read) = ws_stream.split();
+
+    write.send(Message::Text(serde_json::to_string(&request).unwrap())).await;
+    while let Some(Ok(Message::Text(msg))) = read.next().await {
+        let value: Value = serde_json::from_str(&msg).unwrap_or(Value::Null);
+        let data = &value["data"]["message"]
+            .as_str()
+            .and_then(|d| serde_json::from_str(d).ok())
+            .unwrap_or(Value::Null);
+        if let Some("reward-redeemed") = data["type"].as_str() {
+            let reward = &data["data"]["redemption"]["reward"]["title"];
+            if reward.is_string() {
+                let reward = reward.as_str().unwrap();
+                println!("channel point reward: {}", reward);
+            }
+        }
+
+    }
+
 }
+
 
 pub async fn connect() {
     let rt = Runtime::new().unwrap();
