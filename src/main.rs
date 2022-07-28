@@ -2,20 +2,19 @@
 extern crate lazy_static;
 extern crate env_logger;
 
-mod client;
+// mod client;
+mod websocket;
 mod functions;
 mod twitch;
 
-use crate::client::TwitchRewardClient;
+// use crate::client::TwitchRewardClient;
 use crate::functions::Command;
 use crate::functions::oscommand::OSCommand;
 use crate::twitch::{get_channel_id, AuthorizationData, AuthorizationRequest};
-use futures_util::{future, pin_mut, StreamExt, SinkExt};
+use crate::websocket::{connect_websocket, handle_websocket};
 use std::collections::HashMap;
-use serde_json::Value;
 use url::Url;
 use tokio::runtime::Runtime;
-use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
 
 
 #[tokio::main]
@@ -29,53 +28,35 @@ async fn main() {
         &token,
     );
     let request = AuthorizationRequest::new("LISTEN", data);
-    let connect_url = Url::parse("wss://pubsub-edge.twitch.tv:443/v1/").unwrap();
-    let (ws_stream, _) = connect_async(connect_url).await.unwrap();
-    let (mut write, mut read) = ws_stream.split();
+    let (ws_stream, _) = connect_websocket("wss://pubsub-edge.twitch.tv:443/v1/").await.expect("Failed to establish websocket connection.");
 
-    write.send(Message::Text(serde_json::to_string(&request).unwrap())).await;
-    while let Some(Ok(Message::Text(msg))) = read.next().await {
-        let value: Value = serde_json::from_str(&msg).unwrap_or(Value::Null);
-        let data = &value["data"]["message"]
-            .as_str()
-            .and_then(|d| serde_json::from_str(d).ok())
-            .unwrap_or(Value::Null);
-        if let Some("reward-redeemed") = data["type"].as_str() {
-            let reward = &data["data"]["redemption"]["reward"]["title"];
-            if reward.is_string() {
-                let reward = reward.as_str().unwrap();
-                println!("channel point reward: {}", reward);
-            }
-        }
-
-    }
-
+    handle_websocket(request, ws_stream, commands()).await;
 }
 
 
-pub async fn connect() {
-    let rt = Runtime::new().unwrap();
-    let mut ws = ws::WebSocket::new(|out| TwitchRewardClient::new(out, commands())).unwrap();
+//pub async fn connect() {
+//    let rt = Runtime::new().unwrap();
+//    let mut ws = ws::WebSocket::new(|out| TwitchRewardClient::new(out, commands())).unwrap();
+//
+//    rt.spawn(async move {
+//        ws.connect(Url::parse("wss://pubsub-edge.twitch.tv:443/v1/").unwrap())
+//            .unwrap();
+//        if let Err(e) = ws.run() {
+//            println!("socket connect failed {}", e);
+//        };
+//    }).await;
+//
+//}
 
-    rt.spawn(async move {
-        ws.connect(Url::parse("wss://pubsub-edge.twitch.tv:443/v1/").unwrap())
-            .unwrap();
-        if let Err(e) = ws.run() {
-            println!("socket connect failed {}", e);
-        };
-    }).await;
-
-}
-
-fn commands() -> HashMap<String, Box<dyn Command + Send>> {
-    let mut commands: HashMap<String, Box<dyn Command + Send>> = HashMap::new();
+fn commands() -> HashMap<String, Box<dyn Command + Send + Sync>> {
+    let mut commands: HashMap<String, Box<dyn Command + Send + Sync>> = HashMap::new();
     if let Ok(file) = std::fs::File::open("./oscommand.json") {
         let reader = std::io::BufReader::new(file);
-        if let Ok(osCommands) = serde_json::from_reader::<std::io::BufReader<std::fs::File>, Vec<OSCommand>>(reader) {
-            for osCommand in osCommands.iter() {
-                let title = &osCommand.title;
+        if let Ok(os_commands) = serde_json::from_reader::<std::io::BufReader<std::fs::File>, Vec<OSCommand>>(reader) {
+            for os_command in os_commands.iter() {
+                let title = &os_command.title;
 
-                commands.insert(title.to_owned(), Box::new(osCommand.clone()));
+                commands.insert(title.to_owned(), Box::new(os_command.clone()));
             };
         };
     };

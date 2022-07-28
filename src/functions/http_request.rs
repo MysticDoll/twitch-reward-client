@@ -1,10 +1,9 @@
-use crate::client::TwitchRewardClient;
-use crate::functions::Command;
+use crate::functions::{Command, CommandSuccess, CommandErr};
 use reqwest::{Client, Method, Request};
 use serde::Deserialize;
 use serde_json::Value;
 use std::str::FromStr;
-use ws::Result;
+use tokio::task::JoinHandle;
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct HttpRequest {
@@ -16,7 +15,7 @@ pub struct HttpRequest {
 }
 
 impl Command for HttpRequest {
-    fn exec(&self, _client: &TwitchRewardClient) -> Result<()> {
+    fn exec(&self) -> JoinHandle<Result<CommandSuccess, CommandErr>> {
         println!("{:?}", &self);
         let url = self.url.clone();
         let method = self.method.clone();
@@ -35,14 +34,16 @@ impl Command for HttpRequest {
             client = client.body(data.to_owned());
         }
 
-        tokio::spawn(async {
-            client.send().await
-        });
-        tokio::spawn(async {
-            println!("workaround");
-        });
-
-
-        Ok(())
+        tokio::spawn(async move {
+            if let Err(e) = client.send().await {
+                Err(CommandErr::err(&format!(
+                    "Error: Failed to exec request command to `{}`, with status {}",
+                    url,
+                    e.status().map(|status| status.to_string()).unwrap_or("unknown".to_owned())
+                )))
+            } else {
+                Ok(CommandSuccess::nil())
+            }
+        })
     }
 }
